@@ -1,10 +1,11 @@
-# loading data and combine data
-setwd("D:/Kile/èªè¨€åˆ†æèˆ‡è³‡æ–™ç§‘å­¸/Final")
+### find new words generated from the ¤Ó¶§ªá¾Ç¹B
+
+# load data and combine data
 word_gossiping = readLines("ptt_Gossiping_article.txt",encoding = "utf8")
 word_hatepolitics = readLines("ptt_HatePolitics_article.txt", encoding = "utf8")
+word = c(word_gossiping, word_hatepolitics)
 
 # separate the lines into 4 sections and put them into the data frame
-word = c(word_gossiping, word_hatepolitics)
 word_matrix = matrix(rep("0",length(word)*4),c(length(word), 4), byrow = T)
 for(i in 1:length(word)){
     if(length(strsplit(word[i], "&&&")[[1]]) == 4){
@@ -15,8 +16,6 @@ for(i in 1:length(word)){
 }
 ptt_df = as.data.frame(word_matrix, stringsAsFactors = F)
 
-# convert the data frame into xts object
-library(xts)
 # month transform
 for(i in 1:length(ptt_df[,2])){
     if(substr(ptt_df[,2][i],6,8)=="Jan"){
@@ -45,21 +44,23 @@ for(i in 1:length(ptt_df[,2])){
         ptt_df[,2][i]=gsub("Dec","12",ptt_df[,2][i])
     }
 }
+
+# convert the data frame into xts object
+library(xts)
 date = as.Date(ptt_df[,2], format = "%Y-%m-%d")
 ptt_df[,2] = NULL
 ptt_df = xts(ptt_df, order.by = date)
 
-# split yhe xts into two parts by time(the former and the latter, at 3/18)
+# split the xts into two parts by time(the former and the latter parts, split at 3/18)
 colnames(ptt_df) = c("Title", "Article", "Comment")
 ptt_df_former = ptt_df[index(ptt_df)<"2014-03-18",]
 ptt_df_latter = ptt_df[index(ptt_df)>="2014-03-18",]
 
-
-# using jiebaR to cut the words in Title, Content and Comment, then combine them
+# use jiebaR to cut the words in Title, Content and Comment, then combine them
 library(jiebaR)
 cutter = worker()
 
-### for the former
+# words transformation function for the former part
 cut_word_and_concatenate = function(vec){
     cut_word_vec = lapply(1:length(vec), function(i) gsub("[[:punct:]]", "", vec[i]))
     #cut_word_vec = paste(unlist(cut_word_vec), collapse = "_")
@@ -74,16 +75,14 @@ combine_word = function(df){
     comm = lapply(1:length(comm), function(i) strsplit(comm[i],"@@@"))
     comm = lapply(1:length(comm), function(i) substr(unlist(comm[[i]]),rep(3,length(comm[[i]])),as.vector(sapply(comm[[i]],nchar))))
     comm = lapply(1:length(comm), function(i) cut_word_and_concatenate(comm[[i]]))
-    #comm = paste(unlist(comm), collapse = "_")   
-    #word_combined = paste(ti, article, comm, collapse = "_")
     word_combined = c(unlist(ti), unlist(article), unlist(comm))
     word_combined
 }
 
-### for the latter
+# words transformation function for the latter part
 cut_word = function(vec){
     cut_word_vec = lapply(1:length(vec), function(i) gsub(" ", "", vec[i]))
-    cut_word_vec = lapply(1:length(cut_word_vec), function(i) gsub("ã€€", "", cut_word_vec[[i]]))
+    cut_word_vec = lapply(1:length(cut_word_vec), function(i) gsub("¡@", "", cut_word_vec[[i]]))
     cut_word_vec = lapply(1:length(cut_word_vec), function(i) cutter[cut_word_vec[[i]]])
     cut_word_vec
 }
@@ -102,23 +101,23 @@ cut_and_combine = function(df){
     cut_word_vec
 }
 
-#ptt_cut_word_former = combine_word(ptt_df_former)
+# transform the former and latter parts using respective function 
 ptt_cut_word_former = unique(combine_word(ptt_df_former))
 ptt_cut_word_latter = cut_and_combine(ptt_df_latter)
 
 # clean some objects
 rm(word, word_gossiping, word_hatepolitics, word_matrix)
 
-# prepare the data for setting up the freq table for latte set
+# prepare the data for setting up the freq table for latter set
 cut_word_latter_table = c(unlist(ptt_cut_word_latter[[1]]), unlist(ptt_cut_word_latter[[2]]),
                           unlist(ptt_cut_word_latter[[3]]))
 cut_word_latter_table = table(cut_word_latter_table)[table(cut_word_latter_table) >= 0.1*nrow(ptt_df_latter)]
 cut_word_latter_table = cut_word_latter_table[order(cut_word_latter_table, decreasing = T)]
 
-# find new words
-# step 1: using the table to sift the word freq >= 10% of the articles, appearing 1 time
-# step 2: using the former set to sift the word(not appear in the former set)
-# step 3: using the latter set to sift the words' freq at least 60(30 days, each at morning and night)
+# steps to finding new words
+# step 1: use the table consisting of words from latter part to sift the word freq >= 10% of the articles, appearing 1 time
+# step 2: use the former set to sift the word(not appear in the former set)
+# step 3: use the latter set to sift the words' freq at least 60(30 days, each at morning and night)
 
 ### step 1
 # set up the function serving as sifting the new words
@@ -144,7 +143,8 @@ check_gram_in_table = function(latter_set_list, check_table){
     unique(qualified_words)
 }
 
-### because the process is time_comsuming, we instead loaded the previously-run variable
+### because the process is time_comsuming, we instead loaded the previously-run variables for displaying intention
+# the two lines below are the original filtering codes to sift new words from titles and atricles from latter words' table
 #title_check = check_gram_in_table(ptt_cut_word_latter[[1]], cut_word_latter_table)
 #article_check = check_gram_in_table(ptt_cut_word_latter[[2]], cut_word_latter_table)
 load("title_check.rda")
@@ -156,36 +156,44 @@ helper_check_in_former = function(vec){
     return(sign(sum(grepl(word, ptt_cut_word_former),na.rm = T)))
 }
 
-#title_check_former = sapply(1:length(title_check), function(i) helper_check_in_former(title_check[[i]]))
-load("title_check_former.rda")
-temp_title_check_former = title_check[title_check_former == 0]
 
+### because the process is time_comsuming, we instead loaded the previously-run variables for displaying intention
+# the two lines below are the original filtering codes to sift new words from titles and atricles from former articles
+#title_check_former = sapply(1:length(title_check), function(i) helper_check_in_former(title_check[[i]]))
 #article_check_former = sapply(1:length(article_check), function(i) helper_check_in_former(article_check[[i]]))
+load("title_check_former.rda")
 load("article_check_former.rda")
+temp_title_check_former = title_check[title_check_former == 0]
 temp_article_check_former = article_check[article_check_former == 0]
 
 ### step 3
-###
 ptt_cut_word_latter_checker = combine_word(ptt_df_latter)
 
 helper_check_in_latter = function(vec){
     word = paste(vec[1:(length(vec))], collapse = "")
     return(sum(grepl(word, ptt_cut_word_latter_checker),na.rm = T))
-    #return(sign(sum(sapply(1:length(ptt_cut_word_former), function(i) grepl(vec, ptt_cut_word_former[i])))))
 }
+
+### because the process is time_comsuming, we instead loaded the previously-run variables for displaying intention
+# the four lines below are the original filtering codes to sift new words from titles and atricles from latter articles
 #title_check_latter = sapply(1:length(temp_title_check_former),
 #                            function(i) helper_check_in_latter(temp_title_check_former[[i]]))
-load("title_check_latter.rda")
-temp_title_check_latter = temp_title_check_former[title_check_latter >= 60]
-
 #article_check_latter = sapply(1:length(temp_article_check_former),
 #                            function(i) helper_check_in_latter(temp_article_check_former[[i]]))
+load("title_check_latter.rda")
 load("article_check_latter.rda")
+temp_title_check_latter = temp_title_check_former[title_check_latter >= 60]
 temp_article_check_latter = temp_article_check_former[article_check_latter >= 60]
 
+# combine the filtered new words' n-grams from the title and article sets
 new_words_parts = union(temp_title_check_latter, temp_article_check_latter)
-### count the word freq by time
+subset_ind_nchar = sapply(1:length(new_words_parts), function(i) sum(nchar(new_words_parts[[i]])))
+new_words_parts = new_words_parts[subset_ind_nchar <= 5]
+subset_ind_duplicate = duplicated(sapply(1:length(new_words_parts), function(i) paste(new_words_parts[[i]], collapse = "")))
+new_words_parts = new_words_parts[subset_ind_duplicate == FALSE]
 
+# rearrange the article data frame for counting the new words' appearances by time and each statement
+# any appearance in each statement(including title, article and comment) is counted as appearing once 
 comm = ptt_df_latter[,3]
 comm = lapply(1:length(comm), function(i) strsplit(comm[i],"@@@"))
 comm = as.vector(lapply(1:length(comm), function(i) substr(unlist(comm[[i]]),rep(3,length(comm[[i]])),as.vector(sapply(comm[[i]],nchar)))))
@@ -200,6 +208,7 @@ ptt_df_latter_df$Title = NULL
 ptt_df_latter_df$Article = NULL
 ptt_df_latter_df$comment_group = NULL
 
+# set up the data frame representing the words' freq by time 
 count_new_words_freq = function(vec, words){
     count = sum(grepl(vec, words))
     count
@@ -231,29 +240,39 @@ for(i in 1:length(new_words_parts)){
 
 words_count_by_time$a = NULL
 colnames(words_count_by_time) = sapply(1:length(new_words_parts),
-                                  function(i) paste(new_words_parts[[i]], collapse = ""))
+                                       function(i) paste(new_words_parts[[i]], collapse = ""))
 
 words_count_by_time$date = date_ind
 rownames(words_count_by_time) = seq(1,nrow(words_count_by_time))
 
-library("reshape")
-words_count_by_time_melt <- melt(words_count_by_time, id="date")
-
+# display the new words
 new_words = colnames(words_count_df)
 new_words
 
-### plotting the word freq by time
+# plot the words' freq by time
+# use ggplot2
+library("reshape")
+words_count_by_time_melt <- melt(words_count_by_time, id="date")
 
-# all the data, a little messy...
 library(ggplot2)
 ggplot(data = words_count_by_time_melt, aes(x = date,y = value, colour = variable))+geom_line()
 
-# using base plotting system, compare "å¤ªé™½èŠ±", "å¤§è…¸èŠ±"
-plot(x = words_count_by_time$date,
-     y = words_count_by_time$å¤ªé™½èŠ±,type = "l", lwd = 2, col = "firebrick1",
-     ylab = "è©é »", xlab = "æ™‚é–“", main = "å¤ªé™½èŠ±å’Œå¤§è…¸èŠ±è©é »æ¯”è¼ƒ" )
-lines(x = words_count_by_time$date, y = words_count_by_time$å¤§è…¸èŠ±, col = "gray25", lwd = 2)
-legend("topright", c("å¤ªé™½èŠ±","å¤§è…¸èŠ±"), lwd = c(2,2),col = c("firebrick1", "gray25"), cex = 0.7, bty= "n")
+# compare "¤Ó¶§ªá", "¤j¸zªá" using ggplot2
+x = words_count_by_time$date
+y1 = words_count_by_time$¤Ó¶§ªá
+y2 = words_count_by_time$¤j¸zªá
+plot_df = data.frame(x = rep(x, 2), y = c(y1, y2), words = as.factor(rep(c("¤Ó¶§ªá", "¤j¸zªá"), each = 34)))
+ggplot(plot_df, aes(x=x,y=y,group=words)) + geom_line(aes(colour=words, size=words)) + 
+    scale_size_manual(values=c(1.2,1.2)) + scale_color_manual(values=c('dodgerblue2','firebrick2')) +
+    xlab("Date") + ylab("Frequency") + theme(legend.position="bottom") +
+    ggtitle("¤Ó¶§ªá©M¤j¸zªáµüÀW¤ñ¸û")
+
+# use base plotting system, compare "¤Ó¶§ªá", "¤j¸zªá"
+#plot(x = words_count_by_time$date,
+#     y = words_count_by_time$¤Ó¶§ªá,type = "l", lwd = 2, col = "firebrick1",
+#     ylab = "µüÀW", xlab = "®É¶¡", main = "¤Ó¶§ªá©M¤j¸zªáµüÀW¤ñ¸û" )
+#lines(x = words_count_by_time$date, y = words_count_by_time$¤j¸zªá, col = "gray25", lwd = 2)
+#legend("topright", c("¤Ó¶§ªá","¤j¸zªá"), lwd = c(2,2),col = c("firebrick1", "gray25"), cex = 0.7, bty= "n")
 
 ### saving time-comsuming object
 #save(title_check, file = "title_check.rda")
