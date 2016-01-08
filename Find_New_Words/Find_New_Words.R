@@ -63,7 +63,6 @@ cutter = worker()
 # words transformation function for the former part
 cut_word_and_concatenate = function(vec){
     cut_word_vec = lapply(1:length(vec), function(i) gsub("[[:punct:]]", "", vec[i]))
-    #cut_word_vec = paste(unlist(cut_word_vec), collapse = "_")
     cut_word_vec
 }
 combine_word = function(df){
@@ -156,7 +155,6 @@ helper_check_in_former = function(vec){
     return(sign(sum(grepl(word, ptt_cut_word_former),na.rm = T)))
 }
 
-
 ### because the process is time_comsuming, we instead loaded the previously-run variables for displaying intention
 # the two lines below are the original filtering codes to sift new words from titles and atricles from former articles
 #title_check_former = sapply(1:length(title_check), function(i) helper_check_in_former(title_check[[i]]))
@@ -187,8 +185,6 @@ temp_article_check_latter = temp_article_check_former[article_check_latter >= 60
 
 # combine the filtered new words' n-grams from the title and article sets
 new_words_parts = union(temp_title_check_latter, temp_article_check_latter)
-subset_ind_nchar = sapply(1:length(new_words_parts), function(i) sum(nchar(new_words_parts[[i]])))
-new_words_parts = new_words_parts[subset_ind_nchar <= 5]
 subset_ind_duplicate = duplicated(sapply(1:length(new_words_parts), function(i) paste(new_words_parts[[i]], collapse = "")))
 new_words_parts = new_words_parts[subset_ind_duplicate == FALSE]
 
@@ -251,11 +247,11 @@ new_words
 
 # plot the words' freq by time
 # use ggplot2
-library("reshape")
-words_count_by_time_melt <- melt(words_count_by_time, id="date")
+#library("reshape")
+#words_count_by_time_melt <- melt(words_count_by_time, id="date")
 
 library(ggplot2)
-ggplot(data = words_count_by_time_melt, aes(x = date,y = value, colour = variable))+geom_line()
+#ggplot(data = words_count_by_time_melt, aes(x = date,y = value, colour = variable))+geom_line()
 
 # compare "太陽花", "大腸花" using ggplot2
 x = words_count_by_time$date
@@ -282,3 +278,11 @@ ggplot(plot_df, aes(x=x,y=y,group=words)) + geom_line(aes(colour=words, size=wor
 #save(article_check_former, file = "article_check_former.rda")
 #save(article_check_latter, file = "article_check_latter.rda")
 
+# output the new words 
+#order_len = order(sapply(1:length(new_words), function(i) nchar(new_words[i])))
+#new_words_ordered = new_words[order_len]
+#sink("new_words.txt")
+#for(i in 1:length(new_words_ordered)){
+#    cat(paste(new_words_ordered[i],"\n", sep = ""))
+#}
+#sink()
